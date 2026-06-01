@@ -36,6 +36,9 @@ def run_robustness_matrix(
 ) -> RobustnessMatrixResult:
     """Run planning on multiple exogenous perturbations and report pass/fail deltas."""
     criteria = criteria or RobustnessCriteria()
+    case_list = cases or DEFAULT_STRESS_CASES
+    if not any(case.case_id == "base" for case in case_list):
+        raise ValueError("robustness matrix requires a 'base' case for delta calculations")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     rows = [
@@ -46,7 +49,7 @@ def run_robustness_matrix(
             max_iterations=max_iterations,
             criteria=criteria,
         )
-        for case in (cases or DEFAULT_STRESS_CASES)
+        for case in case_list
     ]
     matrix = pd.DataFrame(rows)
     matrix = _add_baseline_deltas(matrix)
@@ -143,9 +146,8 @@ def _add_baseline_deltas(matrix: pd.DataFrame) -> pd.DataFrame:
     matrix = matrix.copy()
     baseline_rows = matrix.loc[matrix["case_id"] == "base"]
     if baseline_rows.empty:
-        baseline = matrix.iloc[0]
-    else:
-        baseline = baseline_rows.iloc[0]
+        raise ValueError("robustness matrix requires a 'base' case for delta calculations")
+    baseline = baseline_rows.iloc[0]
     delta_specs = {
         "economic_cost_cny": "cost_delta_pct",
         "carbon_emissions_t": "carbon_delta_pct",

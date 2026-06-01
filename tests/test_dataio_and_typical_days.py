@@ -12,6 +12,11 @@ from cp202611.typical_days import select_peak_preserving_kmedoids
 
 def test_processed_dataset_roundtrip_preserves_core_counts(tmp_path):
     scenario = create_synthetic_week()
+    payload = scenario.model_dump()
+    payload["route_distance_factor"] = 1.45
+    payload["indoor_target_penalty_cny_per_c_h"] = 150.0
+    scenario = MVPScenario(**payload)
+
     write_processed_dataset(scenario, tmp_path)
 
     loaded = load_processed_dataset(tmp_path)
@@ -23,6 +28,8 @@ def test_processed_dataset_roundtrip_preserves_core_counts(tmp_path):
     assert loaded.buildings[0].mid_temp_demand_mw == scenario.buildings[0].mid_temp_demand_mw
     assert loaded.pipe_loss_fraction_per_km == scenario.pipe_loss_fraction_per_km
     assert loaded.pipe_capex_cny_per_mw_km == scenario.pipe_capex_cny_per_mw_km
+    assert loaded.route_distance_factor == pytest.approx(1.45)
+    assert loaded.indoor_target_penalty_cny_per_c_h == pytest.approx(150.0)
 
 
 def test_week_scenario_solves_after_csv_yaml_roundtrip(tmp_path):

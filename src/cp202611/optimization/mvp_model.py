@@ -9,6 +9,14 @@ import pyomo.environ as pyo
 
 from cp202611.schema import MVPScenario
 
+ASHP_COP_MIN = 1.60
+ASHP_COP_MAX = 3.40
+ASHP_COP_TEMP_SLOPE_PER_C = 0.045
+EDGE_LOW_BIG_M_FACTOR = 2.0
+EDGE_LOW_MIN_FLOW_MW = 1.0
+EDGE_MID_BIG_M_FACTOR = 2.0
+EDGE_MID_MIN_FLOW_MW = 0.05
+
 
 @dataclass(frozen=True)
 class SolveResult:
@@ -44,7 +52,7 @@ def route_distance_km(lon1: float, lat1: float, lon2: float, lat2: float, route_
 
 def cop_for_hour(base_cop: float, outdoor_c: float) -> float:
     # Conservative linear proxy: colder outdoor air lowers ASHP COP.
-    return max(1.60, min(3.40, base_cop + 0.045 * (outdoor_c - 0.0)))
+    return max(ASHP_COP_MIN, min(ASHP_COP_MAX, base_cop + ASHP_COP_TEMP_SLOPE_PER_C * outdoor_c))
 
 
 def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | None = None) -> pyo.ConcreteModel:
@@ -61,6 +69,13 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
     buildings = {b.building_id: b for b in data.buildings}
     sites = {s.site_id: s for s in data.candidate_sites}
     time_weight = data.time_weight or [1.0 for _ in hours]
+    time_weight_soc = time_weight + [time_weight[-1]]
+    cop_by_source_hour = {
+        (s.source_id, hour): cop_for_hour(s.base_cop, data.outdoor_temperature_c[hour])
+        for s in data.sources
+        if s.base_cop is not None
+        for hour in hours
+    }
 
     m.T = pyo.Set(initialize=hours, ordered=True)
     m.TSOC = pyo.Set(initialize=list(range(end_hour + 1)), ordered=True)
@@ -226,14 +241,15 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
         m.J,
         m.T,
         rule=lambda model, b, j, t: model.edge_low[b, j, t]
-        <= max(buildings[b].peak_heat_mw * 2.0, 1.0) * model.assign[b, j],
+        <= max(buildings[b].peak_heat_mw * EDGE_LOW_BIG_M_FACTOR, EDGE_LOW_MIN_FLOW_MW) * model.assign[b, j],
     )
     m.edge_mid_assignment_limit = pyo.Constraint(
         m.B,
         m.J,
         m.T,
         rule=lambda model, b, j, t: model.edge_mid[b, j, t]
-        <= max(max(buildings[b].mid_temp_demand_mw) * 2.0, 0.05) * model.assign[b, j],
+        <= max(max(buildings[b].mid_temp_demand_mw) * EDGE_MID_BIG_M_FACTOR, EDGE_MID_MIN_FLOW_MW)
+        * model.assign[b, j],
     )
     m.edge_capacity = pyo.Constraint(
         m.B,
@@ -273,7 +289,7 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
             q_total = sum(model.q[s_id, l, t] for l in model.L)
             if source.fuel == "electricity":
                 if source.base_cop is not None:
-                    total += q_total / cop_for_hour(source.base_cop, data.outdoor_temperature_c[t])
+                    total += q_total / cop_by_source_hour[(s_id, int(t))]
                 else:
                     total += q_total / source.efficiency
         return total
@@ -285,7 +301,7 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
         q_total = sum(model.q[s_id, l, t] for l in model.L)
         if source.fuel == "electricity":
             if source.base_cop is not None:
-                return q_total / cop_for_hour(source.base_cop, data.outdoor_temperature_c[t])
+                return q_total / cop_by_source_hour[(s_id, int(t))]
             return q_total / source.efficiency
         return q_total / source.efficiency
 
@@ -352,14 +368,14 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
         comfort_penalty = sum(
             data.comfort_slack_penalty_cny_per_c_h
             * (model.comfort_low_slack[b, t] + model.comfort_high_slack[b, t])
-            * time_weight[min(int(t), len(time_weight) - 1)]
+            * time_weight_soc[int(t)]
             for b in model.B
             for t in model.TSOC
         )
         indoor_target_penalty = sum(
             data.indoor_target_penalty_cny_per_c_h
             * (model.indoor_target_pos[b, t] + model.indoor_target_neg[b, t])
-            * time_weight[min(int(t), len(time_weight) - 1)]
+            * time_weight_soc[int(t)]
             for b in model.B
             for t in model.TSOC
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from typer.testing import CliRunner
 
 from cp202611.cli import app
@@ -61,3 +62,16 @@ def test_robustness_matrix_cli_runs_quick_mode(tmp_path):
     assert result.exit_code == 0
     assert "Overall passed: True" in result.output
     assert (output_dir / "robustness_matrix.csv").exists()
+
+
+def test_robustness_matrix_requires_explicit_base_case(tmp_path):
+    scenario = create_synthetic_season(n_hours=72)
+
+    with pytest.raises(ValueError, match="base"):
+        run_robustness_matrix(
+            scenario=scenario,
+            output_dir=tmp_path / "robustness_without_base",
+            cases=[StressCase(case_id="cold_minus_1c", outdoor_delta_c=-1.0)],
+            n_typical_days=3,
+            max_iterations=1,
+        )
