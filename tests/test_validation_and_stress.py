@@ -27,6 +27,21 @@ def test_validate_scenario_flags_peak_heat_below_extreme_load():
     assert any(issue.code == "PEAK_HEAT_BELOW_STEADY_EXTREME" for issue in report.issues)
 
 
+def test_validate_scenario_uses_route_distance_for_service_radius():
+    scenario = create_synthetic_week()
+    payload = scenario.model_dump()
+    payload["route_distance_factor"] = 3.0
+    payload["candidate_sites"][0]["max_radius_km"] = 0.1
+    payload["candidate_sites"][1]["max_radius_km"] = 0.1
+    payload["candidate_sites"][2]["max_radius_km"] = 0.1
+    broken = MVPScenario(**payload)
+
+    report = validate_scenario(broken)
+
+    assert not report.is_usable
+    assert any(issue.code == "BUILDING_WITHOUT_REACHABLE_SITE" for issue in report.issues)
+
+
 def test_apply_stress_case_changes_expected_fields():
     scenario = create_synthetic_week()
     case = StressCase(case_id="probe", outdoor_delta_c=-3.0, grid_limit_factor=0.8, pipe_loss_factor=1.5)

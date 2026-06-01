@@ -5,7 +5,7 @@ from typing import Literal
 
 import pandas as pd
 
-from cp202611.optimization.mvp_model import distance_km
+from cp202611.optimization.mvp_model import route_distance_km
 from cp202611.schema import MVPScenario
 
 Severity = Literal["error", "warning", "info"]
@@ -162,7 +162,14 @@ def _check_spatial_feasibility(scenario: MVPScenario, issues: list[DataIssue]) -
         reachable = [
             site.site_id
             for site in scenario.candidate_sites
-            if distance_km(building.lon, building.lat, site.lon, site.lat) <= site.max_radius_km
+            if route_distance_km(
+                building.lon,
+                building.lat,
+                site.lon,
+                site.lat,
+                route_factor=scenario.route_distance_factor,
+            )
+            <= site.max_radius_km
         ]
         if not reachable:
             _add(issues, "error", "BUILDING_WITHOUT_REACHABLE_SITE", "Building has no candidate site within max service radius.", building.building_id)

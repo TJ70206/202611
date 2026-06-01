@@ -39,8 +39,10 @@ data/processed/<scenario>/
 | `operation_weight` | - | 代表时段运行权重 |
 | `exergy_penalty_cny_per_mwh` | CNY/MWh-eq | 等效㶲损惩罚 |
 | `comfort_slack_penalty_cny_per_c_h` | CNY/(C h) | 室温违约惩罚 |
+| `indoor_target_penalty_cny_per_c_h` | CNY/(C h) | 室温偏离舒适区间中点的软惩罚，默认 100 |
 | `unmet_heat_penalty_cny_per_mwh` | CNY/MWh | 欠供惩罚 |
 | `max_open_sites` | count | 最多启用站点数 |
+| `route_distance_factor` | - | 管线绕行系数，默认 1.30，用于把直线距离折算为规划管线距离 |
 | `pipe_loss_fraction_per_km` | 1/km | 管网线性热损系数 |
 | `pipe_capex_cny_per_mw_km` | CNY/(MW km) | 管网单位容量长度投资 |
 | `pipe_fixed_om_fraction` | 1/year | 管网固定运维比例 |

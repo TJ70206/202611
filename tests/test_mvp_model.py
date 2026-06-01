@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import pytest
 import pyomo.environ as pyo
 
 from cp202611.analysis.diagnostics import compute_mvp_diagnostics
-from cp202611.optimization.mvp_model import distance_km
+from cp202611.optimization.mvp_model import distance_km, route_distance_km
 
 
 def test_mvp_solves_to_optimality(solved_mvp):
@@ -65,3 +66,19 @@ def test_comfort_slack_is_not_used_in_base_case(solved_mvp):
 def test_distance_km_is_reasonable():
     d = distance_km(117.02, 36.66, 117.04, 36.66)
     assert 1.6 < d < 1.9
+
+
+def test_route_distance_applies_planning_detour_factor():
+    straight = distance_km(117.02, 36.66, 117.04, 36.66)
+    routed = route_distance_km(117.02, 36.66, 117.04, 36.66, route_factor=1.3)
+
+    assert routed == pytest.approx(straight * 1.3)
+    assert routed > straight
+
+
+def test_indoor_temperature_has_soft_target_in_base_case(solved_mvp):
+    indoor = solved_mvp.indoor_temperature
+    active_hours = indoor[indoor["hour"] < indoor["hour"].max()]
+
+    assert active_hours["indoor_temp_c"].mean() > 19.2
+    assert active_hours["indoor_temp_c"].min() >= 18.0 - 1e-6

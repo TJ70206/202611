@@ -38,6 +38,10 @@ def distance_km(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     return sqrt(dx * dx + dy * dy)
 
 
+def route_distance_km(lon1: float, lat1: float, lon2: float, lat2: float, route_factor: float = 1.30) -> float:
+    return distance_km(lon1, lat1, lon2, lat2) * route_factor
+
+
 def cop_for_hour(base_cop: float, outdoor_c: float) -> float:
     # Conservative linear proxy: colder outdoor air lowers ASHP COP.
     return max(1.60, min(3.40, base_cop + 0.045 * (outdoor_c - 0.0)))
@@ -72,6 +76,8 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
     m.tin = pyo.Var(m.B, m.TSOC, domain=pyo.Reals)
     m.comfort_low_slack = pyo.Var(m.B, m.TSOC, domain=pyo.NonNegativeReals)
     m.comfort_high_slack = pyo.Var(m.B, m.TSOC, domain=pyo.NonNegativeReals)
+    m.indoor_target_pos = pyo.Var(m.B, m.TSOC, domain=pyo.NonNegativeReals)
+    m.indoor_target_neg = pyo.Var(m.B, m.TSOC, domain=pyo.NonNegativeReals)
     m.charge = pyo.Var(m.T, domain=pyo.NonNegativeReals)
     m.discharge = pyo.Var(m.T, domain=pyo.NonNegativeReals)
     m.soc = pyo.Var(m.TSOC, domain=pyo.NonNegativeReals)
@@ -155,6 +161,14 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
         m.TSOC,
         rule=lambda model, b, t: model.tin[b, t] - model.comfort_high_slack[b, t] <= buildings[b].comfort_max_c,
     )
+    m.indoor_target_balance = pyo.Constraint(
+        m.B,
+        m.TSOC,
+        rule=lambda model, b, t: model.tin[b, t]
+        == (buildings[b].comfort_min_c + buildings[b].comfort_max_c) / 2.0
+        + model.indoor_target_pos[b, t]
+        - model.indoor_target_neg[b, t],
+    )
 
     m.one_site_per_building = pyo.Constraint(m.B, rule=lambda model, b: sum(model.assign[b, j] for j in model.J) == 1)
     m.assign_only_open_site = pyo.Constraint(m.B, m.J, rule=lambda model, b, j: model.assign[b, j] <= model.site_open[j])
@@ -166,7 +180,13 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
     edge_capacity_mw: dict[tuple[str, str], float] = {}
     for b_id, building in buildings.items():
         for j_id, site in sites.items():
-            distance = distance_km(building.lon, building.lat, site.lon, site.lat)
+            distance = route_distance_km(
+                building.lon,
+                building.lat,
+                site.lon,
+                site.lat,
+                route_factor=data.route_distance_factor,
+            )
             edge_distance_km[(b_id, j_id)] = distance
             edge_loss_fraction[(b_id, j_id)] = data.pipe_loss_fraction_per_km * distance
             edge_capacity_mw[(b_id, j_id)] = data.pipe_capacity_margin * (
@@ -336,6 +356,13 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
             for b in model.B
             for t in model.TSOC
         )
+        indoor_target_penalty = sum(
+            data.indoor_target_penalty_cny_per_c_h
+            * (model.indoor_target_pos[b, t] + model.indoor_target_neg[b, t])
+            * time_weight[min(int(t), len(time_weight) - 1)]
+            for b in model.B
+            for t in model.TSOC
+        )
         unmet_penalty = sum(
             data.unmet_heat_penalty_cny_per_mwh * model.unmet_mid[b, t]
             * time_weight[int(t)]
@@ -350,7 +377,16 @@ def build_mvp_model(data: MVPScenario, fixed_decision: FixedPlanningDecision | N
             + site_cost
             + pipe_capex
             + pipe_fixed_om
-            + data.operation_weight * (operating + carbon + exergy + source_variable_om + unmet_penalty + comfort_penalty)
+            + data.operation_weight
+            * (
+                operating
+                + carbon
+                + exergy
+                + source_variable_om
+                + unmet_penalty
+                + comfort_penalty
+                + indoor_target_penalty
+            )
         )
 
     m.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
@@ -466,6 +502,13 @@ def extract_solution(model: pyo.ConcreteModel, termination: str = "unknown") -> 
                     "assigned": round(value(model.assign[b, j])),
                     "site_open": round(value(model.site_open[j])),
                     "distance_km": distance_km(building.lon, building.lat, site.lon, site.lat),
+                    "route_distance_km": route_distance_km(
+                        building.lon,
+                        building.lat,
+                        site.lon,
+                        site.lat,
+                        route_factor=data.route_distance_factor,
+                    ),
                     "max_radius_km": site.max_radius_km,
                 }
             )
