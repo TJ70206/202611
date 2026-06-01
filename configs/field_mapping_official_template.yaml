@@ -1,0 +1,91 @@
+# Official/public raw data mapping template.
+# The optimizer only reads data/processed/*; raw organizer files must first be
+# mapped through this contract. When official data arrives, adjust file names
+# and raw column names here before running preprocess-official.
+
+scenario:
+  scenario_id: official_placeholder_north_small_city
+  electricity_base_price_cny_per_mwh: 800.0
+  gas_price_cny_per_mwh_fuel: 422.0
+  biomass_price_cny_per_mwh_fuel: 192.0
+  gas_emission_factor_t_per_mwh_fuel: 0.202
+  biomass_emission_factor_t_per_mwh_fuel: 0.035
+  carbon_price_cny_per_t: 80.0
+  capex_recovery_factor: 0.10
+  operation_weight: 120.0
+  exergy_penalty_cny_per_mwh: 260.0
+  comfort_slack_penalty_cny_per_c_h: 18000.0
+  unmet_heat_penalty_cny_per_mwh: 60000.0
+  max_open_sites: 2
+  pipe_loss_fraction_per_km: 0.015
+  pipe_capex_cny_per_mw_km: 2500000.0
+  pipe_fixed_om_fraction: 0.015
+  pipe_capacity_margin: 1.25
+  storage_cycle_block_size_h:
+
+time_series:
+  file: time_series.csv
+  columns:
+    hour: hour
+    outdoor_temperature_c: outdoor_temperature_c
+    electricity_price_multiplier: electricity_price_multiplier
+    grid_carbon_factor_t_per_mwh: grid_carbon_factor_t_per_mwh
+    grid_import_limit_mw: grid_import_limit_mw
+
+buildings:
+  file: buildings.csv
+  columns:
+    building_id: building_id
+    lon: lon
+    lat: lat
+    floor_area_m2: floor_area_m2
+    heat_loss_mw_per_c: heat_loss_mw_per_c
+    thermal_capacity_mwh_per_c: thermal_capacity_mwh_per_c
+    initial_indoor_temp_c: initial_indoor_temp_c
+    comfort_min_c: comfort_min_c
+    comfort_max_c: comfort_max_c
+    internal_gain_mw: internal_gain_mw
+    peak_heat_mw: peak_heat_mw
+
+building_mid_temp_demand:
+  file: building_mid_temp_demand.csv
+  columns:
+    building_id: building_id
+    hour: hour
+    mid_temp_demand_mw: mid_temp_demand_mw
+
+heat_sources:
+  file: heat_sources.csv
+  columns:
+    source_id: source_id
+    fuel: fuel
+    allowed_grades: allowed_grades
+    max_capacity_mw: max_capacity_mw
+    capex_cny_per_mw: capex_cny_per_mw
+    fixed_om_fraction: fixed_om_fraction
+    efficiency: efficiency
+    base_cop: base_cop
+    variable_om_cny_per_mwh_th: variable_om_cny_per_mwh_th
+    exergy_loss_low: exergy_loss_low
+    exergy_loss_mid: exergy_loss_mid
+
+candidate_sites:
+  file: candidate_sites.csv
+  columns:
+    site_id: site_id
+    lon: lon
+    lat: lat
+    max_radius_km: max_radius_km
+    service_capacity_mw: service_capacity_mw
+    fixed_cost_cny: fixed_cost_cny
+
+storage:
+  storage_id: tank_low
+  max_capacity_mwh: 2.2
+  capex_cny_per_mwh: 200000.0
+  fixed_om_fraction: 0.008
+  charge_efficiency: 0.96
+  discharge_efficiency: 0.96
+  standing_loss_fraction_per_h: 0.0005
+  power_to_energy_ratio: 0.65
+

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cp202611"
+version = "0.1.0"
+description = "Source-network-load-storage-quality planning MVP for CP-202611."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyomo",
+  "highspy",
+  "pydantic",
+  "typer",
+  "pyyaml",
+  "scikit-learn",
+  "matplotlib",
+  "plotly",
+  "folium",
+  "rich",
+  "openpyxl",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+cp202611 = "cp202611.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
